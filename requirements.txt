@@ -24,11 +24,15 @@ pydantic==2.12.3
     # via
     #   -r requirements.in
     #   fastapi
+    #   pydantic-settings
 pydantic-core==2.41.4
     # via pydantic
+pydantic-settings==2.11.0
+    # via -r requirements.in
 python-dotenv==1.1.1
     # via
     #   -r requirements.in
+    #   pydantic-settings
     #   uvicorn
 python-multipart==0.0.20
     # via -r requirements.in
@@ -47,7 +51,9 @@ typing-extensions==4.15.0
     #   starlette
     #   typing-inspection
 typing-inspection==0.4.2
-    # via pydantic
+    # via
+    #   pydantic
+    #   pydantic-settings
 uvicorn[standard]==0.38.0
     # via -r requirements.in
 uvloop==0.22.1
