@@ -1,0 +1,13 @@
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+class Settings(BaseSettings):
+    FRONTEND_HOST: str
+
+    # .env 환경변수 파일 로드
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_ignore_empty=True
+    )
+
+# 변수로 저장하여 사용
+settings = Settings()
