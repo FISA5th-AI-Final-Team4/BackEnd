@@ -33,7 +33,7 @@ router = APIRouter(prefix="/chat", tags=["Chat"])
 
 @router.get("/personas", response_model=PersonaListResponse)
 async def get_personas():
-    pass
+    return dummy_personas
 
 @router.post("/session")
 async def create_session():
@@ -45,5 +45,4 @@ async def get_chat_history(session_id):
 
 @router.websocket("/ws/{session_id}")
 async def websocket_chat(session_id: str, websocket: WebSocket):
-    await websocket.accept()
     pass
