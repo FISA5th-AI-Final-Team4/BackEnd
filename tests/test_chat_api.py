@@ -26,7 +26,6 @@ def test_get_personas_success(
     assert data == dummy_personas
 
 # --- 2. /api/chat/session 테스트 ---
-@pytest.mark.skip(reason="엔드포인트 미구현")
 def test_create_session_success(
     client: TestClient,
     dummy_personas: Dict[str, List[Dict[str, str]]]
@@ -50,7 +49,6 @@ def test_create_session_success(
     assert "session_id" in data
     assert isinstance(data["session_id"], str)
 
-@pytest.mark.skip(reason="엔드포인트 미구현")
 def test_create_session_missing_body(client: TestClient):
     """
     Pydantic 모델 유효성 검사 테스트

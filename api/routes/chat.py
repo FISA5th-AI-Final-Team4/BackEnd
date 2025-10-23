@@ -35,9 +35,16 @@ router = APIRouter(prefix="/chat", tags=["Chat"])
 async def get_personas():
     return dummy_personas
 
-@router.post("/session")
-async def create_session():
-    return {"session_id": str(uuid.uuid4())}
+@router.post("/session", response_model=ChatSessionResponse)
+async def create_session(req: ChatSessionRequest):
+    # 요청 body에 persona_id가 없으면 422 에러 반환
+    if not req.persona_id:
+        raise HTTPException(status_code=422, detail="persona_id is required")
+    
+    # 웹소켓 연결 및 세션 ID 반환
+    session_id = dummy_chat_history['session_id']
+    
+    return {"session_id": session_id}
 
 @router.get("/history/{session_id}")
 async def get_chat_history(session_id):
