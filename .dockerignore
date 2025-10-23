@@ -3,3 +3,5 @@
 .env
 requirements.in
 docker-scripts/
+.pytest_cache/
+tests/
