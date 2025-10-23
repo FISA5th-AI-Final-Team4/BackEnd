@@ -5,13 +5,13 @@ from fastapi import (
 )
 
 import uuid
+from typing import Dict
 
 from schemas.chat import (
     PersonaListResponse,
     ChatSessionRequest, ChatSessionResponse,
     ChatMessage, ChatHistoryResponse,
 )
-
 
 def _load_dummy_personas():
     import json
@@ -26,8 +26,28 @@ def _load_dummy_personas():
 
     return dummy_personas, dummy_chat_history
 
-dummy_personas, dummy_chat_history = _load_dummy_personas()
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: Dict[str, WebSocket] = {}
 
+    async def connect(self, session_id: str, websocket: WebSocket):
+        """새로운 WebSocket 연결을 수락하고 관리 목록에 추가"""
+        await websocket.accept()
+        self.active_connections[session_id] = websocket
+
+    def disconnect(self, session_id: str):
+        """WebSocket 연결을 관리 목록에서 제거"""
+        if session_id in self.active_connections:
+            del self.active_connections[session_id]
+
+    async def send_personal_message(self, message: Dict[str, bool | str], session_id: str):
+        """특정 세션(클라이언트)에게 JSON 메시지 전송"""
+        if session_id in self.active_connections:
+            await self.active_connections[session_id].send_json(message)
+        # session_id 없는 경우 예외처리 필요
+
+dummy_personas, dummy_chat_history = _load_dummy_personas()
+manager = ConnectionManager()
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
