@@ -89,7 +89,6 @@ def test_get_chat_history_success(
             assert "content" in message
 
 # --- 4. /api/chat/ws/{session_id} 테스트 ---
-@pytest.mark.skip(reason="엔드포인트 미구현")
 def test_websocket_chat_echo(
     client: TestClient,
     dummy_chat_history: Dict[str, List[Dict[str, str | bool]]]

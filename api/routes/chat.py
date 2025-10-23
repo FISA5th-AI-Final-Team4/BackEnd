@@ -54,4 +54,11 @@ async def get_chat_history(session_id: str):
 
 @router.websocket("/ws/{session_id}")
 async def websocket_chat(session_id: str, websocket: WebSocket):
-    pass
+    await websocket.accept()
+    try:
+        while True:
+            data = await websocket.receive_text()
+            # 단순 에코 응답
+            await websocket.send_text(f"LLM이 응답합니다: '{data}'")
+    except WebSocketDisconnect:
+        print(f"WebSocket disconnected for session_id: {session_id}")
