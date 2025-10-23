@@ -61,6 +61,10 @@ async def create_session(req: ChatSessionRequest):
     if not req.persona_id:
         raise HTTPException(status_code=422, detail="persona_id is required")
     
+    # 존재하지 않는 persona_id면 404 에러 반환
+    if req.persona_id not in [p['id'] for p in dummy_personas['personas']]:
+        raise HTTPException(status_code=404, detail="Persona not found")
+    
     # 웹소켓 연결 및 세션 ID 반환
     session_id = uuid4()
     
@@ -68,6 +72,10 @@ async def create_session(req: ChatSessionRequest):
 
 @router.get("/history/{session_id}")
 async def get_chat_history(session_id: UUID):
+    # 존재하지 않는 세션 ID면 404 에러 반환
+    if not session_id in manager.active_connections.keys():
+        raise HTTPException(status_code=404, detail="Session not found")
+    
     chat_history = dummy_chat_history['history']
 
     return {"session_id": session_id, "history": chat_history}
