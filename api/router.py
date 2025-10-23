@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
-from api.routes import health
+from api.routes import health, chat
 
 api_router = APIRouter()
 api_router.include_router(health.router)
+api_router.include_router(chat.router)
