@@ -4,7 +4,7 @@ from fastapi import (
     Path, Body, Depends
 )
 
-import uuid
+from uuid import UUID, uuid4
 from typing import Dict
 
 from schemas.chat import (
@@ -28,19 +28,19 @@ def _load_dummy_personas():
 
 class ConnectionManager:
     def __init__(self):
-        self.active_connections: Dict[str, WebSocket] = {}
+        self.active_connections: Dict[UUID, WebSocket] = {}
 
-    async def connect(self, session_id: str, websocket: WebSocket):
+    async def connect(self, session_id: UUID, websocket: WebSocket):
         """새로운 WebSocket 연결을 수락하고 관리 목록에 추가"""
         await websocket.accept()
         self.active_connections[session_id] = websocket
 
-    def disconnect(self, session_id: str):
+    def disconnect(self, session_id: UUID):
         """WebSocket 연결을 관리 목록에서 제거"""
         if session_id in self.active_connections:
             del self.active_connections[session_id]
 
-    async def send_personal_message(self, message: Dict[str, bool | str], session_id: str):
+    async def send_personal_message(self, message: Dict[str, bool | str], session_id: UUID):
         """특정 세션(클라이언트)에게 JSON 메시지 전송"""
         if session_id in self.active_connections:
             await self.active_connections[session_id].send_json(message)
@@ -62,18 +62,18 @@ async def create_session(req: ChatSessionRequest):
         raise HTTPException(status_code=422, detail="persona_id is required")
     
     # 웹소켓 연결 및 세션 ID 반환
-    session_id = dummy_chat_history['session_id']
+    session_id = uuid4()
     
     return {"session_id": session_id}
 
 @router.get("/history/{session_id}")
-async def get_chat_history(session_id: str):
+async def get_chat_history(session_id: UUID):
     chat_history = dummy_chat_history['history']
 
     return {"session_id": session_id, "history": chat_history}
 
 @router.websocket("/ws/{session_id}")
-async def websocket_chat(session_id: str, websocket: WebSocket):
+async def websocket_chat(session_id: UUID, websocket: WebSocket):
     await websocket.accept()
     try:
         while True:
