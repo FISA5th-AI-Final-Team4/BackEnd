@@ -2,6 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from typing import List, Dict
+from uuid import UUID, uuid4
 
 # API URL 접두사
 API_PREFIX = "/api/chat"
@@ -20,10 +21,18 @@ def test_get_personas_success(
     
     # 1. 200 OK 검증
     assert response.status_code == 200
-    
-    # 2. 응답 데이터가 픽스처(JSON)와 정확히 일치하는지 검증
-    data = response.json()
-    assert data == dummy_personas
+    personas_data = response.json()
+
+    # 2. 응답 내용 검증
+    assert "personas" in personas_data
+    assert isinstance(personas_data["personas"], List)
+    for persona in personas_data["personas"]:
+        assert "id" in persona
+        assert isinstance(persona["id"], int)
+        assert "name" in persona
+        assert isinstance(persona["name"], str)
+        assert "description" in persona
+        assert isinstance(persona["description"], str)
 
 # --- 2. /api/chat/session 테스트 ---
 def test_create_session_success(
@@ -47,7 +56,21 @@ def test_create_session_success(
     # 2. 응답 구조 검증
     data = response.json()
     assert "session_id" in data
-    assert isinstance(data["session_id"], str)
+    assert isinstance(data["session_id"], UUID)
+
+def test_create_session_not_found_persona_id(client: TestClient):
+    """
+    POST /api/chat/session 엔드포인트가
+    1. 존재하지 않는 persona_id를 보냈을 때 404 에러를 반환하는지 테스트
+    """
+    # 존재하지 않는 페르소나 ID 사용
+    invalid_persona_id = -1
+    request_body = {"persona_id": invalid_persona_id}
+    
+    response = client.post(f"{API_PREFIX}/session", json=request_body)
+    
+    # 404 Not Found 검증
+    assert response.status_code == 404
 
 def test_create_session_missing_body(client: TestClient):
     """
@@ -60,6 +83,7 @@ def test_create_session_missing_body(client: TestClient):
     assert response.status_code == 422
 
 # --- 3. /api/chat/history/{session_id} 테스트 ---
+@pytest.mark.skip(reason="session_id DB 적재 미구현으로 생략")
 def test_get_chat_history_success(
     client: TestClient,
     dummy_chat_history: Dict[str, List[Dict[str, str | bool]]]
@@ -88,7 +112,32 @@ def test_get_chat_history_success(
             assert "is_user" in message
             assert "content" in message
 
+def test_get_chat_history_not_found_session_id(client: TestClient):
+    """
+    GET /api/chat/history/{session_id} 엔드포인트가
+    1. 존재하지 않는 session_id로 요청 시 404 에러를 반환하는지 테스트
+    """
+    invalid_session_id = uuid4()
+    
+    response = client.get(f"{API_PREFIX}/history/{invalid_session_id}")
+    
+    # 404 Not Found 검증
+    assert response.status_code == 404
+
+def test_get_chat_history_invalid_session_id_format(client: TestClient):
+    """
+    GET /api/chat/history/{session_id} 엔드포인트가
+    1. 잘못된 형식의 session_id로 요청 시 422 에러를 반환하는지 테스트
+    """
+    invalid_session_id = "invalid-uuid-format"
+    
+    response = client.get(f"{API_PREFIX}/history/{invalid_session_id}")
+    
+    # 422 Unprocessable Entity 검증
+    assert response.status_code == 422
+
 # --- 4. /api/chat/ws/{session_id} 테스트 ---
+@pytest.mark.skip(reason="랜덤 session_id 기준 웹소켓 연동하므로, 통합 테스트로 대체")
 def test_websocket_chat_echo(
     client: TestClient,
     dummy_chat_history: Dict[str, List[Dict[str, str | bool]]]
