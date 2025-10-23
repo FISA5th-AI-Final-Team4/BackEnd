@@ -1,0 +1,17 @@
+{
+  "session_id": "test-ws-session",
+  "history": [
+    {
+      "is_user": false,
+      "content": "어떤 카드를 추천해드릴까요?"
+    },
+    {
+      "is_user": true,
+      "content": "쇼핑을 자주 하는 사람입니다."
+    },
+    {
+      "is_user": false,
+      "content": "알겠습니다. 쇼핑에 특화된 카드를 추천해드리겠습니다."
+    }
+  ]
+}
