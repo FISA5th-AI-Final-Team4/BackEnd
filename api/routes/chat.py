@@ -47,8 +47,10 @@ async def create_session(req: ChatSessionRequest):
     return {"session_id": session_id}
 
 @router.get("/history/{session_id}")
-async def get_chat_history(session_id):
-    return {"session_id": session_id, "history": []}
+async def get_chat_history(session_id: str):
+    chat_history = dummy_chat_history['history']
+
+    return {"session_id": session_id, "history": chat_history}
 
 @router.websocket("/ws/{session_id}")
 async def websocket_chat(session_id: str, websocket: WebSocket):

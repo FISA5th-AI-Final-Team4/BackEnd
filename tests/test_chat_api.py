@@ -60,7 +60,6 @@ def test_create_session_missing_body(client: TestClient):
     assert response.status_code == 422
 
 # --- 3. /api/chat/history/{session_id} 테스트 ---
-@pytest.mark.skip(reason="엔드포인트 미구현")
 def test_get_chat_history_success(
     client: TestClient,
     dummy_chat_history: Dict[str, List[Dict[str, str | bool]]]
