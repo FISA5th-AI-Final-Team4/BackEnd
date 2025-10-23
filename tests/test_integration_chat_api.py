@@ -38,8 +38,13 @@ def test_full_chat_scenario(client: TestClient):
     assert response.status_code == 200
     session_data = response.json()
     assert "session_id" in session_data
-    assert isinstance(session_data["session_id"], UUID)
-    
+    try:
+        # 문자열을 UUID 객체로 변환 시도
+        UUID(session_data["session_id"], version=4)
+    except ValueError:
+        # 변환 실패 시 테스트 강제 실패
+        pytest.fail(f"'{session_data['session_id']}' is not a valid UUID4 string")
+
     # 획득한 session_id를 변수에 저장합니다.
     session_id = session_data["session_id"]
     

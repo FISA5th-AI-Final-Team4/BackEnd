@@ -56,7 +56,12 @@ def test_create_session_success(
     # 2. 응답 구조 검증
     data = response.json()
     assert "session_id" in data
-    assert isinstance(data["session_id"], UUID)
+    try:
+        # 문자열을 UUID 객체로 변환 시도
+        UUID(data["session_id"], version=4)
+    except ValueError:
+        # 변환 실패 시 테스트 강제 실패
+        pytest.fail(f"'{data['session_id']}' is not a valid UUID4 string")
 
 def test_create_session_not_found_persona_id(client: TestClient):
     """
