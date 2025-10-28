@@ -3,3 +3,7 @@
 .env
 requirements.in
 docker-scripts/
+.pytest_cache/
+tests/
+!tests/data/
+.vscode
