@@ -7,11 +7,14 @@ from fastapi import (
 from uuid import UUID, uuid4
 from typing import Dict
 
+import httpx
+
 from schemas.chat import (
     PersonaListResponse,
     ChatSessionRequest, ChatSessionResponse,
     ChatMessage, ChatHistoryResponse,
 )
+from core.config import settings
 
 def _load_dummy_personas():
     import json
@@ -89,11 +92,29 @@ async def get_chat_history(session_id: UUID):
 async def websocket_chat(session_id: UUID, websocket: WebSocket):
     # TODO - pending_session에서 session_id 확인 필요 -> 없다면 4001 연결 거부
     await websocket.accept()
-    try:
-        while True:
-            data = await websocket.receive_text()
-            # 단순 에코 응답
-            await websocket.send_text(f"LLM이 응답합니다: '{data}'")
-    except WebSocketDisconnect:
-        # TODO - 연결 종료 시 pending_session에서 session_id 제거 필요
-        print(f"WebSocket disconnected for session_id: {session_id}")
+    llm_endpoint = f"{settings.LLMSERVER_URL}/llm/mcp-router/invoke"
+
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        try:
+            while True:
+                data = await websocket.receive_text()
+                await websocket.send_text(f"백엔드 Echo: {data}")
+                
+                try:
+                    response = await client.post(
+                        llm_endpoint,
+                        json={"query": data},
+                    )
+                    response.raise_for_status()
+                    payload = response.json()
+                    answer = payload.get("answer")
+                    if not isinstance(answer, str) or not answer:
+                        raise ValueError("LLM 서버 응답 형식이 올바르지 않습니다.")
+                except (httpx.HTTPError, ValueError) as exc:
+                    await websocket.send_text(f"LLM 서버 오류: {exc}")
+                    continue
+
+                await websocket.send_text(answer)
+        except WebSocketDisconnect:
+            # TODO - 연결 종료 시 pending_session에서 session_id 제거 필요
+            print(f"WebSocket disconnected for session_id: {session_id}")
