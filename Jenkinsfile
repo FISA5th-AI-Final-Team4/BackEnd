@@ -39,10 +39,11 @@ pipeline {
                 // 컨테이너 실행 시점에 withCredentials를 사용하여 환경 변수를 주입합니다.
                 withCredentials([
                     string(credentialsId: 'FRONTEND_HOST', variable: 'FRONTEND_HOST'),
-                    string(credentialsId: 'LLMSERVER_URL', variable: 'LLMSERVER_URL')
+                    string(credentialsId: 'LLMSERVER_URL', variable: 'LLMSERVER_URL'),
+                    string(credentialsId: 'BACKEND_HOST_PORT', variable: 'BACKEND_HOST_PORT')
                 ]) {
                     // -e 플래그를 사용하여 런타임 환경 변수로 전달
-                    sh "docker run -d --name ${CONTAINER_NAME} -p 8001:8000 -e FRONTEND_HOST=${FRONTEND_HOST} -e LLMSERVER_URL=${LLMSERVER_URL} ${IMAGE_NAME}"
+                    sh "docker run -d --name ${CONTAINER_NAME} -p ${BACKEND_HOST_PORT}:8000 -e FRONTEND_HOST=${FRONTEND_HOST} -e LLMSERVER_URL=${LLMSERVER_URL} ${IMAGE_NAME}"
                 }
                 
                 echo 'Deployment Complete!'
