@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import (
     APIRouter, HTTPException,
     WebSocket, WebSocketDisconnect,
@@ -15,6 +17,8 @@ from schemas.chat import (
     ChatMessage, ChatHistoryResponse,
 )
 from core.config import settings
+
+logger = logging.getLogger(__name__)
 
 def _load_dummy_personas():
     import json
@@ -92,30 +96,55 @@ async def get_chat_history(session_id: UUID):
 async def websocket_chat(session_id: UUID, websocket: WebSocket):
     # TODO - pending_session에서 session_id 확인 필요 -> 없다면 4001 연결 거부
     await websocket.accept()
-    llm_endpoint = f"{settings.LLMSERVER_URL}/llm/dispatch-demo/weather"
+    llm_endpoint = f"{settings.LLMSERVER_URL}/llm/mcp-router/dispatch"
 
-    async with httpx.AsyncClient(timeout=10.0) as client:
+    async with httpx.AsyncClient(timeout=120.0) as client:
         try:
             while True:
                 data = await websocket.receive_text()
-                print(f"Received message from session_id {session_id}: {data}")
+                logger.debug("Received message from session_id %s: %s", session_id, data)
                 
                 try:
+                    print("LLM 서버 요청 데이터:", data)
+                    logger.debug("Sending request to LLM server at %s with data: %s", llm_endpoint, data)
                     response = await client.post(
                         llm_endpoint,
                         json={"query": data},
                     )
                     response.raise_for_status()
                     payload = response.json()
+                    logger.debug("LLM server payload: %s", payload)
                     answer = payload.get("answer")
                     if not isinstance(answer, str) or not answer:
                         raise ValueError("LLM 서버 응답 형식이 올바르지 않습니다.")
-                except (httpx.HTTPError, ValueError) as exc:
-                    await websocket.send_text(f"LLM 서버 오류: {exc}")
+                except httpx.HTTPStatusError as exc:
+                    response_text = exc.response.text if exc.response else "(no response body)"
+                    logger.exception(
+                        "LLM server returned status %s for session %s: %s",
+                        exc.response.status_code if exc.response else "unknown",
+                        session_id,
+                        response_text,
+                    )
+                    await websocket.send_text(f"LLM 서버 오류: {exc.response.status_code if exc.response else 'unknown'} {response_text}")
+                    continue
+                except httpx.RequestError as exc:
+                    logger.exception(
+                        "LLM server request error for session %s: %r",
+                        session_id,
+                        exc,
+                    )
+                    await websocket.send_text(f"LLM 서버 네트워크 오류: {exc!r}")
+                    continue
+                except ValueError as exc:
+                    logger.exception("Invalid LLM response for session %s", session_id)
+                    await websocket.send_text(f"LLM 서버 응답 오류: {exc}")
                     continue
 
                 await websocket.send_text(answer)
-                print(f"Sent answer to session_id {session_id}: {answer}")
+                logger.debug("Sent answer to session_id %s: %s", session_id, answer)
         except WebSocketDisconnect:
             # TODO - 연결 종료 시 pending_session에서 session_id 제거 필요
-            print(f"WebSocket disconnected for session_id: {session_id}")
+            logger.info("WebSocket disconnected for session_id: %s", session_id)
+        except Exception as exc:  # pragma: no cover - unexpected paths
+            logger.exception("Unexpected error in websocket_chat for session %s", session_id)
+            await websocket.close(code=1011, reason="Internal server error")

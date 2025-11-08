@@ -4,6 +4,7 @@ class Settings(BaseSettings):
     # 시스템 환경변수 적용
     FRONTEND_HOST: str
     LLMSERVER_URL: str
+    LLM_CLIENT_TIMEOUT: float = 30.0
 
     # .env 환경변수 파일 로드
     model_config = SettingsConfigDict(
