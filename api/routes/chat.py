@@ -92,13 +92,14 @@ async def get_chat_history(session_id: UUID):
 async def websocket_chat(session_id: UUID, websocket: WebSocket):
     # TODO - pending_session에서 session_id 확인 필요 -> 없다면 4001 연결 거부
     await websocket.accept()
-    llm_endpoint = f"{settings.LLMSERVER_URL.rstrip('/')}/llm/mcp-router/invoke"
-    
+    llm_endpoint = f"{settings.LLMSERVER_URL}/llm/dispatch-demo/weather"
+
     async with httpx.AsyncClient(timeout=10.0) as client:
         try:
             while True:
                 data = await websocket.receive_text()
-                await websocket.send_text(f"백엔드 Echo: {data}")
+                print(f"Received message from session_id {session_id}: {data}")
+                
                 try:
                     response = await client.post(
                         llm_endpoint,
@@ -109,19 +110,12 @@ async def websocket_chat(session_id: UUID, websocket: WebSocket):
                     answer = payload.get("answer")
                     if not isinstance(answer, str) or not answer:
                         raise ValueError("LLM 서버 응답 형식이 올바르지 않습니다.")
-                except httpx.HTTPStatusError as exc:
-                    status = exc.response.status_code
-
-                    message = f"LLM 서버 오류 (HTTP {status})"
-                    if isinstance(exc.response.text, str) and exc.response.text.strip():
-                        message = f"{message}: {exc.response.text.strip()}"
-                    await websocket.send_text(message)
-                    continue
-                except (httpx.RequestError, ValueError):
-                    await websocket.send_text("LLM 서버와의 통신 중 문제가 발생했습니다.")
+                except (httpx.HTTPError, ValueError) as exc:
+                    await websocket.send_text(f"LLM 서버 오류: {exc}")
                     continue
 
                 await websocket.send_text(answer)
+                print(f"Sent answer to session_id {session_id}: {answer}")
         except WebSocketDisconnect:
             # TODO - 연결 종료 시 pending_session에서 session_id 제거 필요
             print(f"WebSocket disconnected for session_id: {session_id}")
