@@ -4,6 +4,7 @@ from fastapi import (
     Path, Body, Depends
 )
 
+from datetime import datetime, timezone
 from uuid import UUID, uuid4
 from typing import Dict
 
@@ -98,7 +99,15 @@ async def websocket_chat(session_id: UUID, websocket: WebSocket):
         try:
             while True:
                 data = await websocket.receive_text()
-                await websocket.send_text(f"백엔드 Echo: {data}")
+                from time import sleep
+                sleep(1)
+                req_payload = {'sender': 'user', 'message': data}
+                # TODO - 유저 채팅 저장 로직
+
+                timestamp = datetime.now(timezone.utc).isoformat()
+                res_payload = {'sender': 'bot', 'timestamp': timestamp}
+
+
                 try:
                     response = await client.post(
                         llm_endpoint,
@@ -106,22 +115,21 @@ async def websocket_chat(session_id: UUID, websocket: WebSocket):
                     )
                     response.raise_for_status()
                     payload = response.json()
-                    answer = payload.get("answer")
-                    if not isinstance(answer, str) or not answer:
+                    res_payload['message'] = payload.get("answer")
+                    if not isinstance(res_payload['message'], str) or not res_payload['message']:
                         raise ValueError("LLM 서버 응답 형식이 올바르지 않습니다.")
                 except httpx.HTTPStatusError as exc:
                     status = exc.response.status_code
 
                     message = f"LLM 서버 오류 (HTTP {status})"
                     if isinstance(exc.response.text, str) and exc.response.text.strip():
-                        message = f"{message}: {exc.response.text.strip()}"
-                    await websocket.send_text(message)
-                    continue
+                        res_payload['message'] = f"{message}: {exc.response.text.strip()}"
                 except (httpx.RequestError, ValueError):
-                    await websocket.send_text("LLM 서버와의 통신 중 문제가 발생했습니다.")
-                    continue
+                    res_payload['message'] = "LLM 서버와의 통신 중 문제가 발생했습니다."
+                finally:
+                    # TODO - 봇 채팅 저장 로직
+                    await websocket.send_json(res_payload)
 
-                await websocket.send_text(answer)
         except WebSocketDisconnect:
             # TODO - 연결 종료 시 pending_session에서 session_id 제거 필요
             print(f"WebSocket disconnected for session_id: {session_id}")
