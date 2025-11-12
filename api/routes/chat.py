@@ -14,6 +14,7 @@ from schemas.chat import (
     PersonaListResponse,
     ChatSessionRequest, ChatSessionResponse,
     ChatMessage, ChatHistoryResponse,
+    FeedbackRequest
 )
 from core.config import settings
 
@@ -93,7 +94,7 @@ async def get_chat_history(session_id: UUID):
 async def websocket_chat(session_id: UUID, websocket: WebSocket):
     # TODO - pending_session에서 session_id 확인 필요 -> 없다면 4001 연결 거부
     await websocket.accept()
-    llm_endpoint = f"{settings.LLMSERVER_URL.rstrip('/')}/llm/mcp-router/invoke"
+    llm_endpoint = f"{settings.LLMSERVER_URL.rstrip('/')}/llm/mcp-router/dispatch"
     
     async with httpx.AsyncClient(timeout=10.0) as client:
         try:
@@ -101,11 +102,17 @@ async def websocket_chat(session_id: UUID, websocket: WebSocket):
                 data = await websocket.receive_text()
                 from time import sleep
                 sleep(1)
+                print(f"Received message for session_id {session_id}: {data}")
                 req_payload = {'sender': 'user', 'message': data}
                 # TODO - 유저 채팅 저장 로직
 
                 timestamp = datetime.now(timezone.utc).isoformat()
-                res_payload = {'sender': 'bot', 'timestamp': timestamp}
+                message_id = uuid4()
+                res_payload = {
+                    'sender': 'bot',
+                    'timestamp': timestamp,
+                    'message_id': str(message_id)
+                }
 
 
                 try:
@@ -133,3 +140,33 @@ async def websocket_chat(session_id: UUID, websocket: WebSocket):
         except WebSocketDisconnect:
             # TODO - 연결 종료 시 pending_session에서 session_id 제거 필요
             print(f"WebSocket disconnected for session_id: {session_id}")
+
+@router.post("/feedback")
+async def submit_feedback(req: FeedbackRequest):
+    """
+    챗봇 응답 메시지에 대한 피드백(thumb-up/down)을 제출받습니다.
+    """
+    
+    # TODO 1: DB에서 req.message_id로 해당 메시지 조회
+    # message = await get_message_from_db(req.message_id)
+    
+    # if not message:
+    #     # 존재하지 않는 메시지 ID일 경우
+    #     raise HTTPException(status_code=404, detail="Message not found")
+        
+    # if message.sender != 'bot':
+    #     # 봇 메시지가 아닌 경우 (선택적 검증)
+    #     raise HTTPException(status_code=400, detail="Feedback is only for bot messages")
+
+    # TODO 2: DB의 해당 메시지 레코드에 피드백 상태 업데이트
+    # await update_message_feedback(req.message_id, req.feedback.value) # req.feedback.value는 "up" 또는 "down"
+    
+    print(f"Feedback received for {req.message_id}: {req.is_helpful}")
+    print(req)
+
+    # 클라이언트에게 성공 응답 반환
+    return {
+        "status": "success", 
+        "message_id": req.message_id, 
+        "feedback_received": req.is_helpful
+    }

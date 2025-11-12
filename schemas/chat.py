@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-from typing import List
+from typing import List, Optional
 
 from uuid import UUID
 
@@ -25,3 +25,8 @@ class ChatMessage(BaseModel):
 class ChatHistoryResponse(BaseModel):
     session_id: UUID
     history: List[ChatMessage]
+
+class FeedbackRequest(BaseModel):
+    message_id: UUID
+    is_helpful: Optional[bool] = None
+    prompt_message_id: UUID
