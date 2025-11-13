@@ -11,11 +11,12 @@ from typing import Dict
 import httpx
 
 from schemas.chat import (
-    PersonaListResponse,
     ChatSessionRequest, ChatSessionResponse,
     ChatMessage, ChatHistoryResponse,
     FeedbackRequest
 )
+from schemas.persona import PersonaListResponse
+
 from core.config import settings
 
 def _load_dummy_personas():

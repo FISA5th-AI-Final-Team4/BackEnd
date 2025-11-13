@@ -4,13 +4,6 @@ from typing import List, Optional
 
 from uuid import UUID
 
-class Persona(BaseModel):
-    id: int
-    name: str
-    description: str
-
-class PersonaListResponse(BaseModel):
-    personas: List[Persona]
 
 class ChatSessionRequest(BaseModel):
     persona_id: int
