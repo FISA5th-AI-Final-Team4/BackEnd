@@ -3,6 +3,7 @@ from fastapi import (
     WebSocket, WebSocketDisconnect,
     Path, Body, Depends
 )
+from sqlalchemy.exc import SQLAlchemyError
 
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
@@ -17,7 +18,10 @@ from schemas.chat import (
 )
 from schemas.persona import PersonaListResponse
 
+import crud.persona
+
 from core.config import settings
+from core.db import SessionDep
 
 def _load_dummy_personas():
     import json
@@ -60,9 +64,26 @@ manager = ConnectionManager()
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
 @router.get("/personas", response_model=PersonaListResponse)
-async def get_personas():
-    # TODO - 페르소나 DB 연동 및 select 쿼리 필요 (controller/CRUD로 분리)
-    return dummy_personas
+async def get_personas(db: SessionDep):
+    """ 사용자 페르소나 목록을 조회합니다. """
+    try:
+        # DB에서 페르소나 목록 조회
+        personas = await crud.persona.get_personas(db)
+        return {"personas": personas}
+    except SQLAlchemyError as e:
+        # DB 연결 실패, 쿼리 오류 등 SQLAlchemy 관련 오류가 발생한 경우
+        print(f"--- DB Error in /personas: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Internal Server Error: DB operation failed"
+        )
+    except Exception as e:
+        # 기타 알 수 없는 오류가 발생한 경우
+        print(f"--- Unknown Error in /personas: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Internal Server Error: Unknown error occurred"
+        )
 
 @router.post("/session", response_model=ChatSessionResponse)
 async def create_session(req: ChatSessionRequest):
