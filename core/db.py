@@ -1,8 +1,9 @@
 from typing import Annotated
 from sqlmodel import SQLModel, create_engine, Session
 from fastapi import Depends
-from core.config import settings
 
+from core.config import settings
+from models import Persona # 테이블 생성을 위해 임포트
 
 engine = create_engine(settings.DATABASE_URL)
     
