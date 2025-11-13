@@ -6,7 +6,7 @@ from typing import List, Optional
 class PersonaBase(SQLModel):
     name: str
     description: Optional[str] = None
-    image_key: Optional[str] = None
+    # image_key: Optional[str] = None
 
 # 페르소나 생성용 스키마
 class PersonaCreate(PersonaBase):
