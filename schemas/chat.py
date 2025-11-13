@@ -1,25 +1,25 @@
-from pydantic import BaseModel
+from sqlmodel import SQLModel
 
 from typing import List, Optional
 
 from uuid import UUID
 
 
-class ChatSessionRequest(BaseModel):
+class ChatSessionRequest(SQLModel):
     persona_id: int
 
-class ChatSessionResponse(BaseModel):
+class ChatSessionResponse(SQLModel):
     session_id: UUID
 
-class ChatMessage(BaseModel):
+class ChatMessage(SQLModel):
     is_user: bool
     content: str
 
-class ChatHistoryResponse(BaseModel):
+class ChatHistoryResponse(SQLModel):
     session_id: UUID
     history: List[ChatMessage]
 
-class FeedbackRequest(BaseModel):
+class FeedbackRequest(SQLModel):
     message_id: UUID
     is_helpful: Optional[bool] = None
     prompt_message_id: UUID

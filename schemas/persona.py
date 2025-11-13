@@ -1,12 +1,12 @@
-from pydantic import BaseModel
+from sqlmodel import SQLModel
 
 from typing import List
 
 
-class Persona(BaseModel):
+class Persona(SQLModel):
     id: int
     name: str
     description: str
 
-class PersonaListResponse(BaseModel):
+class PersonaListResponse(SQLModel):
     personas: List[Persona]

@@ -101,8 +101,7 @@ async def websocket_chat(session_id: UUID, websocket: WebSocket):
         try:
             while True:
                 data = await websocket.receive_text()
-                from time import sleep
-                sleep(1)
+                
                 print(f"Received message for session_id {session_id}: {data}")
                 req_payload = {'sender': 'user', 'message': data}
                 # TODO - 유저 채팅 저장 로직
@@ -115,12 +114,13 @@ async def websocket_chat(session_id: UUID, websocket: WebSocket):
                     'message_id': str(message_id)
                 }
 
-
+                print(f"Forwarding to LLM server at {llm_endpoint}")
                 try:
                     response = await client.post(
                         llm_endpoint,
-                        json={"query": data},
+                        json={"query": data}
                     )
+                    print("LLM server response received")
                     response.raise_for_status()
                     payload = response.json()
                     res_payload['message'] = payload.get("answer")
