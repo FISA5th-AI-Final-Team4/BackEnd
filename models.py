@@ -14,6 +14,14 @@ from uuid import UUID, uuid4
 from schemas.persona import PersonaBase
 
 
+def get_timestamp_column():
+    """타임스탬프 컬럼 생성 헬퍼 함수"""
+    return Column(
+        TIMESTAMP(timezone=True),  # DB에 저장되는 실제 컬럼 타입
+        server_default=func.now(), # DB 서버에 실제로 저장될 때의 기본값
+        nullable=False
+    )
+
 class Persona(PersonaBase, table=True):
     __tablename__ = "Persona" # DB에 저장되는 테이블 이름
 
@@ -29,11 +37,7 @@ class Persona(PersonaBase, table=True):
     created_at: datetime = Field(
         # Python에서 ORM 객체 생성 시 기본값
         default_factory=lambda: datetime.now(timezone.utc), 
-        sa_column=Column(
-            TIMESTAMP(timezone=True),  # DB에 저장되는 실제 컬럼 타입
-            server_default=func.now(), # DB 서버에 실제로 저장될 때의 기본값
-            nullable=False
-        )
+        sa_column=get_timestamp_column()
     )
 
     # --- Relationships ---
@@ -58,11 +62,7 @@ class ChatSession(SQLModel, table=True):
     # 세션 생성 시점 타임스탬프 컬럼
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc), 
-        sa_column=Column(
-            TIMESTAMP(timezone=True),
-            server_default=func.now(),
-            nullable=False
-        )
+        sa_column=get_timestamp_column()
     )
 
     # --- Relationships ---
