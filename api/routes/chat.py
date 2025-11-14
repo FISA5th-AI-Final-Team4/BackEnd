@@ -87,20 +87,37 @@ async def get_personas(db: SessionDep):
 
 @router.post("/session", response_model=ChatSessionResponse)
 async def create_session(req: ChatSessionRequest, db: SessionDep):
-    # 요청 body에 persona_id가 없으면 422 에러 반환
-    if not req.persona_id:
-        raise HTTPException(status_code=422, detail="persona_id is required")
+    try:
+        # 요청 body에 persona_id가 없으면 422 에러 반환
+        if not req.persona_id:
+            raise HTTPException(status_code=422, detail="persona_id is required")
+        
+        # 존재하지 않는 persona_id면 404 에러 반환
+        persona = await crud.persona.get_persona_by_id(db, req.persona_id)
+        if not persona:
+            raise HTTPException(status_code=404, detail="Persona not found")
+        
+        # 웹소켓 연결 및 세션 ID 반환
+        session_id = uuid4()
+        # TODO - pending_session에 session_id:persona_id 추가 필요
+        
+        return {"session_id": session_id}
+
+    except SQLAlchemyError as e:
+        # DB 연결 실패, 쿼리 오류 등 SQLAlchemy 관련 오류가 발생한 경우
+        print(f"--- DB Error in /session: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Internal Server Error: DB operation failed"
+        )
     
-    # 존재하지 않는 persona_id면 404 에러 반환
-    persona = await crud.persona.get_persona_by_id(db, req.persona_id)
-    if not persona:
-        raise HTTPException(status_code=404, detail="Persona not found")
-    
-    # 웹소켓 연결 및 세션 ID 반환
-    session_id = uuid4()
-    # TODO - pending_session에 session_id:persona_id 추가 필요
-    
-    return {"session_id": session_id}
+    except Exception as e:
+        # 기타 알 수 없는 오류가 발생한 경우
+        print(f"--- Unknown Error in /session: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Internal Server Error: Unknown error occurred"
+        )
 
 @router.get("/history/{session_id}")
 async def get_chat_history(session_id: UUID):
