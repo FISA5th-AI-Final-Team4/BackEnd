@@ -1,10 +1,15 @@
 from sqlmodel import SQLModel, Field, Relationship
-from sqlalchemy import Column, TEXT, JSON, TIMESTAMP, String
+from sqlalchemy import (
+    Column, ForeignKey,
+    TEXT, JSON, TIMESTAMP,
+    String, Integer
+)
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import CHAR
 
 from typing import List, Optional
 from datetime import datetime, timezone
+from uuid import UUID, uuid4
 
 from schemas.persona import PersonaBase
 
@@ -30,3 +35,35 @@ class Persona(PersonaBase, table=True):
             nullable=False
         )
     )
+
+    # --- Relationships ---
+    # (Ref: ChatSession.persona_id > Persona.id)
+    chat_sessions: List["ChatSession"] = Relationship(back_populates="persona")
+
+class ChatSession(SQLModel, table=True):
+    __tablename__ = "ChatSession"
+
+    # Primary Key
+    session_id: UUID = Field(
+        default_factory=uuid4,
+        sa_column=Column(CHAR(36), primary_key=True) # UUID를 CHAR(36)로 저장
+    )
+    
+    # Foreign Key - Persona.id (페르소나 삭제 시 NULL로 변경)
+    persona_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(Integer, ForeignKey("Persona.id", ondelete="SET NULL"))
+    )
+
+    # 세션 생성 시점 타임스탬프 컬럼
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc), 
+        sa_column=Column(
+            TIMESTAMP(timezone=True),
+            server_default=func.now(),
+            nullable=False
+        )
+    )
+
+    # --- Relationships ---
+    persona: Optional[Persona] = Relationship(back_populates="chat_sessions")
