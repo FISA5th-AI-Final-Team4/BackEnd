@@ -86,13 +86,14 @@ async def get_personas(db: SessionDep):
         )
 
 @router.post("/session", response_model=ChatSessionResponse)
-async def create_session(req: ChatSessionRequest):
+async def create_session(req: ChatSessionRequest, db: SessionDep):
     # 요청 body에 persona_id가 없으면 422 에러 반환
     if not req.persona_id:
         raise HTTPException(status_code=422, detail="persona_id is required")
     
     # 존재하지 않는 persona_id면 404 에러 반환
-    if req.persona_id not in [p['id'] for p in dummy_personas['personas']]:
+    persona = await crud.persona.get_persona_by_id(db, req.persona_id)
+    if not persona:
         raise HTTPException(status_code=404, detail="Persona not found")
     
     # 웹소켓 연결 및 세션 ID 반환
