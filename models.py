@@ -1,7 +1,7 @@
 from sqlmodel import SQLModel, Field, Relationship
 from sqlalchemy import (
-    Column, ForeignKey,
-    TEXT, JSON, TIMESTAMP,
+    Column, ForeignKey, Index,
+    TEXT, JSON, TIMESTAMP, 
     String, Integer
 )
 from sqlalchemy.sql import func
@@ -67,3 +67,45 @@ class ChatSession(SQLModel, table=True):
 
     # --- Relationships ---
     persona: Optional[Persona] = Relationship(back_populates="chat_sessions")
+
+class Chat(SQLModel, table=True):
+    __tablename__ = "Chat"
+    
+    # 인덱스 설정하여 성능 최적화
+    __table_args__ = (
+        Index("idx_session_created", "session_id", "created_at"),
+    )
+
+    # Primary Key
+    id: Optional[int] = Field(default=None, primary_key=True)
+    
+    # Foreign Key - ChatSession.session_id
+    session_id: UUID = Field(
+        sa_column=Column(
+            CHAR(36),
+            ForeignKey("ChatSession.session_id", ondelete="CASCADE"), 
+            nullable=False
+        )
+    )
+
+    # Foreign Key - Persona.id
+    persona_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(Integer, ForeignKey("Persona.id", ondelete="SET NULL"))
+    )
+    
+    # 사용자 채팅 여부
+    is_user: bool
+    
+    # 실제 채팅 내용
+    content: str = Field(sa_column=Column(TEXT, nullable=False))
+    
+    # 채팅 생성 시점 타임스탬프 컬럼
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc), 
+        sa_column=get_timestamp_column()
+    )
+
+    # --- Relationships ---
+    session: ChatSession = Relationship(back_populates="chats")
+    persona: Optional[Persona] = Relationship(back_populates="chats")
