@@ -161,7 +161,7 @@ async def websocket_chat(websocket: WebSocket, db: SessionDep):
     print(f"WebSocket connection established for session_id: {session_id}")
 
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=settings.HTTPX_TIMEOUT) as client:
             while True:
                 try:
                     data = await websocket.receive_text()
