@@ -70,6 +70,19 @@ async def get_chat_by_id(db: AsyncSession, chat_id: UUID) -> Optional[Chat]:
     
     return result.scalars().first()
 
+async def fetch_chats_by_session_id(db: AsyncSession, session_id: UUID) -> List[Chat]:
+    """
+    특정 세션 ID에 해당하는 모든 채팅 메시지를 조회합니다.
+    """
+    statement = (
+        select(Chat)
+        .where(Chat.session_id == str(session_id))
+        .order_by(Chat.created_at)
+    )
+    result = await db.execute(statement)
+    
+    return result.scalars().all()
+
 async def update_chat_feedback(
     db: AsyncSession, prompt_chat_id: UUID, is_helpful: bool
 ) -> Optional[ChatbotResponse]:
