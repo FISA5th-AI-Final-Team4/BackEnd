@@ -1,14 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from core.setup import lifespan
 from api.router import api_router
 
-app = FastAPI()
 
-@app.get('/')
-def root():
-    return {'message': "Woori FISA 5th - Team 4 Backend Server"}
-
+app = FastAPI(lifespan=lifespan)
 app.include_router(api_router, prefix='/api')
 
 # CORS 설정
@@ -20,3 +17,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get('/')
+def root():
+    return {'message': "Woori FISA 5th - Team 4 Backend Server"}
