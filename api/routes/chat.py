@@ -10,6 +10,7 @@ from uuid import UUID, uuid4
 from typing import Dict
 
 import httpx
+import asyncio
 
 from schemas.chat import (
     ChatSessionRequest, ChatSessionResponse,
@@ -180,8 +181,14 @@ async def websocket_chat(session_id: UUID, websocket: WebSocket, db: SessionDep)
                 except (httpx.RequestError, ValueError):
                     res_payload['message'] = "LLM 서버와의 통신 중 문제가 발생했습니다."
                 finally:
-                    # TODO - 봇 채팅 저장 로직
-                    await websocket.send_json(res_payload)
+                    task_send_user = websocket.send_json(res_payload)
+                    task_save_res = crud.chat.creat_chatbot_chat(
+                        db, session_id, persona_id, res_payload['message']
+                    )
+                    try: 
+                        await asyncio.gather(task_send_user, task_save_res)
+                    except Exception as e:
+                        print(f"Error during parallel send/save bot response: {e}")
 
         except WebSocketDisconnect:
             # TODO - 연결 종료 시 pending_session에서 session_id 제거 필요
