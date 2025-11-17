@@ -150,7 +150,9 @@ async def websocket_chat(session_id: UUID, websocket: WebSocket, db: SessionDep)
                 
                 print(f"Received message for session_id {session_id}: {data}")
                 req_payload = {'sender': 'user', 'message': data}
-                await crud.chat.create_user_chat(db, session_id, persona_id, data)
+                user_chat = await crud.chat.create_user_chat(
+                    db, session_id, persona_id, data
+                )
 
                 timestamp = datetime.now(timezone.utc).isoformat()
                 message_id = uuid4()
@@ -183,7 +185,8 @@ async def websocket_chat(session_id: UUID, websocket: WebSocket, db: SessionDep)
                 finally:
                     task_send_user = websocket.send_json(res_payload)
                     task_save_res = crud.chat.creat_chatbot_chat(
-                        db, session_id, persona_id, res_payload['message']
+                        db, session_id, persona_id,
+                        res_payload['message'], user_chat.id 
                     )
                     try: 
                         await asyncio.gather(task_send_user, task_save_res)
