@@ -83,7 +83,9 @@ class Chat(SQLModel, table=True):
     )
 
     # Primary Key
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: UUID = Field(
+        sa_column=Column(CHAR(36), primary_key=True)
+    )
     
     # Foreign Key - ChatSession.session_id
     session_id: UUID = Field(
@@ -131,17 +133,17 @@ class ChatbotResponse(SQLModel, table=True):
     __tablename__ = "ChatbotResponse"
 
     # Foreign Key - Chat.id (is_user가 False인 챗봇 응답 메시지 ID)
-    chat_id: int = Field(
+    chat_id: UUID = Field(
         sa_column=Column(
-            Integer, ForeignKey("Chat.id", ondelete="CASCADE"), 
+            CHAR(36), ForeignKey("Chat.id", ondelete="CASCADE"), 
             primary_key=True
         )
     )
     
     # Foreign Key - Chat.id (챗봇 응답을 유발한 사용자의 프롬프트 메시지 ID)
-    prompt_chat_id: Optional[int] = Field(
+    prompt_chat_id: Optional[UUID] = Field(
         default=None,
-        sa_column=Column(Integer, ForeignKey("Chat.id", ondelete="SET NULL"))
+        sa_column=Column(CHAR(36), ForeignKey("Chat.id", ondelete="SET NULL"))
     )
 
     # True: 유용함, False: 유용하지 않음, None: 미평가 (기본값)
