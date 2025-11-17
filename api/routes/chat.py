@@ -3,6 +3,7 @@ from fastapi import (
     WebSocket, WebSocketDisconnect,
     Path, Body, Depends
 )
+from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 
 from datetime import datetime, timezone
@@ -40,30 +41,8 @@ def _load_dummy_personas():
 
     return dummy_personas, dummy_chat_history
 
-class ConnectionManager:
-    def __init__(self):
-        self.active_connections: Dict[UUID, WebSocket] = {}
-        # TODO - session_id - persona_id 매핑 관리 Tuple로 변경 필요
-
-    async def connect(self, session_id: UUID, websocket: WebSocket):
-        """새로운 WebSocket 연결을 수락하고 관리 목록에 추가"""
-        await websocket.accept()
-        self.active_connections[session_id] = websocket
-
-    def disconnect(self, session_id: UUID):
-        """WebSocket 연결을 관리 목록에서 제거"""
-        if session_id in self.active_connections:
-            del self.active_connections[session_id]
-
-    async def send_personal_message(self, message: Dict[str, bool | str], session_id: UUID):
-        """특정 세션(클라이언트)에게 JSON 메시지 전송"""
-        if session_id in self.active_connections:
-            await self.active_connections[session_id].send_json(message)
-        # TODO - session_id 없는 경우 예외처리 필요
-
-dummy_personas, dummy_chat_history = _load_dummy_personas()
-# TODO - pending_session set 생성 필요, session_id:persona_id 매핑 관리
-manager = ConnectionManager()
+# 서버에서 발급된 UUID인지 체크 및 세션&페르소나 매핑 담당
+pending_session: Dict[UUID, int] = {}
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
@@ -89,7 +68,7 @@ async def get_personas(db: SessionDep):
             detail="Internal Server Error: Unknown error occurred"
         )
 
-@router.post("/session", response_model=ChatSessionResponse)
+@router.post("/session")
 async def create_session(req: ChatSessionRequest, db: SessionDep):
     try:
         # 요청 body에 persona_id가 없으면 422 에러 반환
@@ -101,11 +80,23 @@ async def create_session(req: ChatSessionRequest, db: SessionDep):
         if not persona:
             raise HTTPException(status_code=404, detail="Persona not found")
         
-        # 웹소켓 연결 및 세션 ID 반환
+        # 웹소켓 연결을 위한 세션 ID를 쿠키로 반환
         session_id = uuid4()
-        # TODO - pending_session에 session_id:persona_id 추가 필요
+        session_id_str = str(session_id)
+        pending_session[session_id] = req.persona_id
+
+        is_dev = (settings.ENVIRONMENT == "development")
+        res = JSONResponse(content={"session_id": session_id_str})
+        res.set_cookie(
+            key="session_token",
+            value=session_id_str,
+            httponly=True,
+            secure=not is_dev,
+            samesite="lax",
+            path="/"
+        )
         
-        return {"session_id": session_id}
+        return res
 
     except SQLAlchemyError as e:
         # DB 연결 실패, 쿼리 오류 등 SQLAlchemy 관련 오류가 발생한 경우
@@ -134,11 +125,20 @@ async def get_chat_history(session_id: UUID):
 
     return {"session_id": session_id, "history": chat_history}
 
-@router.websocket("/ws/{session_id}")
-async def websocket_chat(session_id: UUID, websocket: WebSocket, db: SessionDep):
-    # TODO - pending_session에서 session_id 확인 필요 -> 없다면 4001 연결 거부
-    # TODO - pending_session에서 persona_id 매핑 필요
-    persona_id = 1
+@router.websocket("/ws")
+async def websocket_chat(websocket: WebSocket, db: SessionDep):
+    try:
+        session_id_str = websocket.cookies.get("session_token")
+        session_id = UUID(session_id_str)
+    except Exception as e:
+        await websocket.close(code=4001, reason="Invalid session")
+        return
+    # 세션 ID에 매핑된 페르소나 ID 조회
+    persona_id = pending_session[session_id]
+    persona = await crud.persona.get_persona_by_id(db, persona_id)
+    if not persona: # 존재하지 않는 페르소나 ID면 연결 종료
+        await websocket.close(code=4001, reason="Invalid persona")
+        return
 
     # PG 저장 예외 처리
     try:
