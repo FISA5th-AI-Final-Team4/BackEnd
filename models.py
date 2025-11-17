@@ -115,3 +115,47 @@ class Chat(SQLModel, table=True):
     # --- Relationships ---
     session: ChatSession = Relationship(back_populates="chats")
     persona: Optional[Persona] = Relationship(back_populates="chats")
+    response_detail: Optional["ChatbotResponse"] = Relationship(
+        back_populates="chat",
+        sa_relationship_kwargs={
+            "cascade": "all, delete-orphan",
+            "foreign_keys": "ChatbotResponse.chat_id"
+        }
+    )
+    prompted_responses: List["ChatbotResponse"] = Relationship(
+        back_populates="prompt_chat",
+        sa_relationship_kwargs={"foreign_keys": "ChatbotResponse.prompt_chat_id"}
+    )
+
+class ChatbotResponse(SQLModel, table=True):
+    __tablename__ = "ChatbotResponse"
+
+    # Foreign Key - Chat.id (is_user가 False인 챗봇 응답 메시지 ID)
+    chat_id: int = Field(
+        sa_column=Column(
+            Integer, ForeignKey("Chat.id", ondelete="CASCADE"), 
+            primary_key=True
+        )
+    )
+    
+    # Foreign Key - Chat.id (챗봇 응답을 유발한 사용자의 프롬프트 메시지 ID)
+    prompt_chat_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(Integer, ForeignKey("Chat.id", ondelete="SET NULL"))
+    )
+
+    # True: 유용함, False: 유용하지 않음, None: 미평가 (기본값)
+    is_helpful: Optional[bool] = Field(default=None)
+
+    # TODO - 호출된 도구 정보 컬럼 / 응답 타입 컬럼 (카드 정보, 일반 채팅 등)
+
+    # --- Relationships ---
+    chat: Chat = Relationship(
+        back_populates="response_detail",
+        sa_relationship_kwargs={"foreign_keys": "ChatbotResponse.chat_id"}
+    )
+    
+    prompt_chat: Optional[Chat] = Relationship(
+        back_populates="prompted_responses",
+        sa_relationship_kwargs={"foreign_keys": "ChatbotResponse.prompt_chat_id"}
+    )
