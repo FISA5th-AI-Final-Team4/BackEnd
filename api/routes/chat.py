@@ -116,14 +116,29 @@ async def create_session(req: ChatSessionRequest, db: SessionDep):
 
 @router.get("/history/{session_id}")
 async def get_chat_history(session_id: UUID, db: SessionDep):
-    # 존재하지 않는 세션 ID면 404 에러 반환
-    session = await crud.session.get_chat_session_by_id(db, session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
-    
-    chat_history = await crud.chat.fetch_chats_by_session_id(db, session_id)
+    try:
+        # 존재하지 않는 세션 ID면 404 에러 반환
+        session = await crud.session.get_chat_session_by_id(db, session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+        chat_history = await crud.chat.fetch_chats_by_session_id(db, session_id)
 
-    return {"session_id": session_id, "history": chat_history}
+        return {"session_id": session_id, "history": chat_history}
+    except SQLAlchemyError as e:
+        # DB 연결 실패, 쿼리 오류 등 SQLAlchemy 관련 오류가 발생한 경우
+        print(f"--- DB Error in /history/{session_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Internal Server Error: DB operation failed"
+        )
+    except Exception as e:
+        # 기타 알 수 없는 오류가 발생한 경우
+        print(f"--- Unknown Error in /history/{session_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Internal Server Error: Unknown error occurred"
+        )
 
 @router.websocket("/ws")
 async def websocket_chat(websocket: WebSocket, db: SessionDep):
