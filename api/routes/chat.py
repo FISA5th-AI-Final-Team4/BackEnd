@@ -115,13 +115,13 @@ async def create_session(req: ChatSessionRequest, db: SessionDep):
         )
 
 @router.get("/history/{session_id}")
-async def get_chat_history(session_id: UUID):
+async def get_chat_history(session_id: UUID, db: SessionDep):
     # 존재하지 않는 세션 ID면 404 에러 반환
-    if not session_id in manager.active_connections.keys():
+    session = await crud.session.get_chat_session_by_id(db, session_id)
+    if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     
-    # TODO - 실제 DB에서 세션 ID로 채팅 히스토리 조회 필요
-    chat_history = dummy_chat_history['history']
+    chat_history = await crud.chat.fetch_chats_by_session_id(db, session_id)
 
     return {"session_id": session_id, "history": chat_history}
 
