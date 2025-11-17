@@ -41,10 +41,11 @@ pipeline {
                     string(credentialsId: 'FRONTEND_HOST', variable: 'FRONTEND_HOST'),
                     string(credentialsId: 'LLMSERVER_URL', variable: 'LLMSERVER_URL'),
                     string(credentialsId: 'BACKEND_HOST_PORT', variable: 'BACKEND_HOST_PORT'),
+                    string(credentialsId: 'DATABASE_URL', variable: 'DATABASE_URL'),
                     string(credentialsId: 'HTTPX_TIMEOUT', variable: 'HTTPX_TIMEOUT')
                 ]) {
                     // -e 플래그를 사용하여 런타임 환경 변수로 전달
-                    sh "docker run -d --name ${CONTAINER_NAME} -p ${BACKEND_HOST_PORT}:8000 -e FRONTEND_HOST=${FRONTEND_HOST} -e LLMSERVER_URL=${LLMSERVER_URL} -e HTTPX_TIMEOUT=${HTTPX_TIMEOUT} ${IMAGE_NAME} -e ENVIRONMENT=production"
+                    sh "docker run -d --name ${CONTAINER_NAME} -p ${BACKEND_HOST_PORT}:8000 -e FRONTEND_HOST=${FRONTEND_HOST} -e LLMSERVER_URL=${LLMSERVER_URL} -e HTTPX_TIMEOUT=${HTTPX_TIMEOUT} -e ENVIRONMENT=production -e DATABASE_URL=${DATABASE_URL} ${IMAGE_NAME}"
                 }
                 
                 echo 'Deployment Complete!'
