@@ -22,4 +22,3 @@ class ChatHistoryResponse(SQLModel):
 class FeedbackRequest(SQLModel):
     message_id: UUID
     is_helpful: Optional[bool] = None
-    prompt_message_id: UUID

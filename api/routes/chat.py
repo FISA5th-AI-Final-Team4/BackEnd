@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from uuid import UUID, uuid4
 from typing import Dict
 
+import json
 import httpx
 import asyncio
 
@@ -139,90 +140,125 @@ async def websocket_chat(session_id: UUID, websocket: WebSocket, db: SessionDep)
     # TODO - pending_session에서 persona_id 매핑 필요
     persona_id = 1
 
+    # PG 저장 예외 처리
+    try:
+        await crud.session.create_chat_session(db, session_id, persona_id)
+    except SQLAlchemyError as e:
+        print(f"--- DB Error in websocket /ws/{session_id}: {e}")
+        await websocket.close(code=1011)
+        return
+    except Exception as e:
+        print(f"--- Unknown Error in websocket /ws/{session_id}: {e}")
+        await websocket.close(code=1011)
+        return
+    
+    # WS 연결 수립
     await websocket.accept()
     llm_endpoint = f"{settings.LLMSERVER_URL.rstrip('/')}/llm/mcp-router/dispatch"
-    await crud.session.create_chat_session(db, session_id, persona_id)
+    print(f"WebSocket connection established for session_id: {session_id}")
 
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        try:
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
             while True:
-                data = await websocket.receive_text()
-                
-                print(f"Received message for session_id {session_id}: {data}")
-                req_payload = {'sender': 'user', 'message': data}
-                user_chat = await crud.chat.create_user_chat(
-                    db, session_id, persona_id, data
-                )
-
-                timestamp = datetime.now(timezone.utc).isoformat()
-                message_id = uuid4()
-                res_payload = {
-                    'sender': 'bot',
-                    'timestamp': timestamp,
-                    'message_id': str(message_id)
-                }
-
-                print(f"Forwarding to LLM server at {llm_endpoint}")
                 try:
-                    response = await client.post(
-                        llm_endpoint,
-                        json={"query": data}
-                    )
-                    print("LLM server response received")
-                    response.raise_for_status()
-                    payload = response.json()
-                    res_payload['message'] = payload.get("answer")
-                    if not isinstance(res_payload['message'], str) or not res_payload['message']:
-                        raise ValueError("LLM 서버 응답 형식이 올바르지 않습니다.")
-                except httpx.HTTPStatusError as exc:
-                    status = exc.response.status_code
+                    data = await websocket.receive_text()
+                    
+                    # JSON 파싱 예외 처리
+                    try:
+                        req_payload = json.loads(data)
+                        if not isinstance(req_payload, dict):
+                            raise ValueError("Payload is not a JSON object")
+                    except (json.JSONDecodeError, ValueError) as e:
+                        print(f"Invalid JSON received from {session_id}: {e}")
+                        await websocket.send_json({"error": "Invalid JSON format"})
+                        continue
 
-                    message = f"LLM 서버 오류 (HTTP {status})"
-                    if isinstance(exc.response.text, str) and exc.response.text.strip():
-                        res_payload['message'] = f"{message}: {exc.response.text.strip()}"
-                except (httpx.RequestError, ValueError):
-                    res_payload['message'] = "LLM 서버와의 통신 중 문제가 발생했습니다."
-                finally:
-                    task_send_user = websocket.send_json(res_payload)
-                    task_save_res = crud.chat.creat_chatbot_chat(
-                        db, session_id, persona_id,
-                        res_payload['message'], user_chat.id 
-                    )
-                    try: 
-                        await asyncio.gather(task_send_user, task_save_res)
-                    except Exception as e:
-                        print(f"Error during parallel send/save bot response: {e}")
+                    # 사용자 메세지 DB 저장
+                    try:
+                        user_chat = await crud.chat.create_user_chat(
+                            db, req_payload['message_id'],
+                            session_id, persona_id, req_payload['message']
+                        )
+                    except SQLAlchemyError as e:
+                        print(f"--- DB Error saving user chat for session_id {session_id}: {e}")
+                        await websocket.send_json({"error": "Internal Server Error: DB operation failed"})
+                        continue
+                    timestamp = datetime.now(timezone.utc).isoformat()
+                    res_payload = {
+                        'sender': 'bot',
+                        'timestamp': timestamp,
+                        'message_id': str(user_chat.id)
+                    }
+                    print(f"Received message from session_id {session_id}: {req_payload['message']}")
 
-        except WebSocketDisconnect:
-            # TODO - 연결 종료 시 pending_session에서 session_id 제거 필요
-            print(f"WebSocket disconnected for session_id: {session_id}")
+                    # LLM 호출 및 응답 생성
+                    try:
+                        response = await client.post(
+                            llm_endpoint,
+                            json={"query": data}
+                        )
+                        response.raise_for_status()
+                        payload = response.json()
+                        res_payload['message'] = payload.get("answer")
+                        if not isinstance(res_payload['message'], str) or not res_payload['message']:
+                            raise ValueError("LLM 서버 응답 형식이 올바르지 않습니다.")
+                    except httpx.HTTPStatusError as exc:
+                        res_payload['message'] = f"LLM 서버 오류 (HTTP {exc.response.status_code})"
+                    except (httpx.RequestError, ValueError) as e:
+                        res_payload['message'] = f"LLM 서버 통신 오류: {e}"
+                    # 봇 응답 전송&저장 병렬 처리
+                    finally:
+                        task_send_user = websocket.send_json(res_payload)
+                        task_save_res = crud.chat.create_chatbot_chat(
+                            db, session_id, persona_id,
+                            res_payload['message'], user_chat.id 
+                        )
+                        try: 
+                            await asyncio.gather(task_send_user, task_save_res)
+                        except Exception as e:
+                            print(f"Error during parallel send/save bot response: {e}")
+                        print(f"Sent bot response to session_id {session_id}: {res_payload['message']}")
+                # 루프 내부 개별 메세지 예외 처리
+                except Exception as e:
+                    print(f"--- Unknown Error in message handling loop for session_id {session_id}: {e}")
+                    try:
+                        await websocket.send_json({"error": "Internal Server Error: Unknown error occurred"})
+                    except Exception:
+                        pass
+                    break
+    except WebSocketDisconnect:
+        print(f"WebSocket disconnected for session_id: {session_id}")
+    except Exception as e:
+        print(f"--- Unknown Error in websocket /ws/{session_id}: {e}")
+        await websocket.close(code=1011)
+    finally:
+        # TODO - 연결 종료 시 항상 Manager에서 제거
+        # manager.disconnect(session_id)
+        print(f"WebSocket connection closed for session_id: {session_id}")
 
 @router.post("/feedback")
-async def submit_feedback(req: FeedbackRequest):
+async def submit_feedback(req: FeedbackRequest, db: SessionDep):
     """
     챗봇 응답 메시지에 대한 피드백(thumb-up/down)을 제출받습니다.
     """
     
-    # TODO 1: DB에서 req.message_id로 해당 메시지 조회
-    # message = await get_message_from_db(req.message_id)
-    
-    # if not message:
-    #     # 존재하지 않는 메시지 ID일 경우
-    #     raise HTTPException(status_code=404, detail="Message not found")
-        
-    # if message.sender != 'bot':
-    #     # 봇 메시지가 아닌 경우 (선택적 검증)
-    #     raise HTTPException(status_code=400, detail="Feedback is only for bot messages")
+    try:
+        chatbot_chat = await crud.chat.update_chat_feedback(
+            db, req.message_id, req.is_helpful
+        )
+        print(f"Feedback received for {req.message_id}: {req.is_helpful}")
+        print(req)
+        print(chatbot_chat)
 
-    # TODO 2: DB의 해당 메시지 레코드에 피드백 상태 업데이트
-    # await update_message_feedback(req.message_id, req.feedback.value) # req.feedback.value는 "up" 또는 "down"
-    
-    print(f"Feedback received for {req.message_id}: {req.is_helpful}")
-    print(req)
-
-    # 클라이언트에게 성공 응답 반환
-    return {
-        "status": "success", 
-        "message_id": req.message_id, 
-        "feedback_received": req.is_helpful
-    }
+        # 클라이언트에게 성공 응답 반환
+        return {
+            "status": "success", 
+            "message_id": chatbot_chat.chat_id, 
+            "feedback_received": chatbot_chat.is_helpful
+        }
+    except SQLAlchemyError as e:
+        print(f"--- DB Error in /feedback: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Internal Server Error: DB operation failed"
+        )
