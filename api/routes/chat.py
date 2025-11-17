@@ -19,6 +19,8 @@ from schemas.chat import (
 from schemas.persona import PersonaListResponse
 
 import crud.persona
+import crud.session
+import crud.chat
 
 from core.config import settings
 from core.db import SessionDep
@@ -131,11 +133,15 @@ async def get_chat_history(session_id: UUID):
     return {"session_id": session_id, "history": chat_history}
 
 @router.websocket("/ws/{session_id}")
-async def websocket_chat(session_id: UUID, websocket: WebSocket):
+async def websocket_chat(session_id: UUID, websocket: WebSocket, db: SessionDep):
     # TODO - pending_session에서 session_id 확인 필요 -> 없다면 4001 연결 거부
+    # TODO - pending_session에서 persona_id 매핑 필요
+    persona_id = 1
+
     await websocket.accept()
     llm_endpoint = f"{settings.LLMSERVER_URL.rstrip('/')}/llm/mcp-router/dispatch"
-    
+    await crud.session.create_chat_session(db, session_id, persona_id)
+
     async with httpx.AsyncClient(timeout=10.0) as client:
         try:
             while True:
@@ -143,7 +149,7 @@ async def websocket_chat(session_id: UUID, websocket: WebSocket):
                 
                 print(f"Received message for session_id {session_id}: {data}")
                 req_payload = {'sender': 'user', 'message': data}
-                # TODO - 유저 채팅 저장 로직
+                await crud.chat.create_user_chat(db, session_id, persona_id, data)
 
                 timestamp = datetime.now(timezone.utc).isoformat()
                 message_id = uuid4()
