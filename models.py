@@ -43,6 +43,7 @@ class Persona(PersonaBase, table=True):
     # --- Relationships ---
     # (Ref: ChatSession.persona_id > Persona.id)
     chat_sessions: List["ChatSession"] = Relationship(back_populates="persona")
+    chats: List["Chat"] = Relationship(back_populates="persona")
 
 class ChatSession(SQLModel, table=True):
     __tablename__ = "ChatSession"
@@ -67,6 +68,11 @@ class ChatSession(SQLModel, table=True):
 
     # --- Relationships ---
     persona: Optional[Persona] = Relationship(back_populates="chat_sessions")
+    chats: List["Chat"] = Relationship(
+        back_populates="session",
+        # 'ChatSession'이 삭제될 때 관련된 모든 'Chat' 메시지를 연쇄 삭제
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
 
 class Chat(SQLModel, table=True):
     __tablename__ = "Chat"
