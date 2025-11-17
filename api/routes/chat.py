@@ -28,18 +28,6 @@ import crud.chat
 from core.config import settings
 from core.db import SessionDep
 
-def _load_dummy_personas():
-    import json
-    import os
-    CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-    DUMMY_DATA_DIR = os.path.join(CURRENT_DIR, "../../tests/data")
-    with open(os.path.join(DUMMY_DATA_DIR, "personas.json"), "r", encoding="utf-8") as f:
-        dummy_personas = json.load(f)
-
-    with open(os.path.join(DUMMY_DATA_DIR, "chat_history.json"), "r", encoding="utf-8") as f:
-        dummy_chat_history = json.load(f)
-
-    return dummy_personas, dummy_chat_history
 
 # 서버에서 발급된 UUID인지 체크 및 세션&페르소나 매핑 담당
 pending_session: Dict[UUID, int] = {}
