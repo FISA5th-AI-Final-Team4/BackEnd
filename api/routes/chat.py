@@ -195,7 +195,7 @@ async def websocket_chat(session_id: UUID, websocket: WebSocket, db: SessionDep)
                     try:
                         response = await client.post(
                             llm_endpoint,
-                            json={"query": data}
+                            json={"query": req_payload['message']}
                         )
                         response.raise_for_status()
                         payload = response.json()
