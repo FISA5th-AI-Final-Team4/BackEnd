@@ -26,7 +26,7 @@ import crud.session
 import crud.chat
 
 from core.config import settings
-from core.db import SessionDep
+from core.db import SessionDep, get_async_context_db
 
 
 # 서버에서 발급된 UUID인지 체크 및 세션&페르소나 매핑 담당
@@ -129,7 +129,7 @@ async def get_chat_history(session_id: UUID, db: SessionDep):
         )
 
 @router.websocket("/ws")
-async def websocket_chat(websocket: WebSocket, db: SessionDep):
+async def websocket_chat(websocket: WebSocket):
     try:
         session_id_str = websocket.cookies.get("session_token")
         session_id = UUID(session_id_str)
@@ -138,14 +138,16 @@ async def websocket_chat(websocket: WebSocket, db: SessionDep):
         return
     # 세션 ID에 매핑된 페르소나 ID 조회
     persona_id = pending_session[session_id]
-    persona = await crud.persona.get_persona_by_id(db, persona_id)
-    if not persona: # 존재하지 않는 페르소나 ID면 연결 종료
-        await websocket.close(code=4001, reason="Invalid persona")
-        return
+    async with get_async_context_db() as db:
+        persona = await crud.persona.get_persona_by_id(db, persona_id)
+        if not persona: # 존재하지 않는 페르소나 ID면 연결 종료
+            await websocket.close(code=4001, reason="Invalid persona")
+            return
 
     # PG 저장 예외 처리
     try:
-        await crud.session.create_chat_session(db, session_id, persona_id)
+        async with get_async_context_db() as db:
+            await crud.session.create_chat_session(db, session_id, persona_id)
     except SQLAlchemyError as e:
         print(f"--- DB Error in websocket /ws/{session_id}: {e}")
         await websocket.close(code=1011)
@@ -178,10 +180,11 @@ async def websocket_chat(websocket: WebSocket, db: SessionDep):
 
                     # 사용자 메세지 DB 저장
                     try:
-                        user_chat = await crud.chat.create_user_chat(
-                            db, req_payload['message_id'],
-                            session_id, persona_id, req_payload['message']
-                        )
+                        async with get_async_context_db() as db:
+                            user_chat = await crud.chat.create_user_chat(
+                                db, req_payload['message_id'],
+                                session_id, persona_id, req_payload['message']
+                            )
                     except SQLAlchemyError as e:
                         print(f"--- DB Error saving user chat for session_id {session_id}: {e}")
                         await websocket.send_json({"error": "Internal Server Error: DB operation failed"})
@@ -211,13 +214,14 @@ async def websocket_chat(websocket: WebSocket, db: SessionDep):
                         res_payload['message'] = f"LLM 서버 통신 오류: {e}"
                     # 봇 응답 전송&저장 병렬 처리
                     finally:
-                        task_send_user = websocket.send_json(res_payload)
-                        task_save_res = crud.chat.create_chatbot_chat(
-                            db, session_id, persona_id,
-                            res_payload['message'], user_chat.id 
-                        )
                         try: 
-                            await asyncio.gather(task_send_user, task_save_res)
+                            async with get_async_context_db() as db:
+                                task_send_user = websocket.send_json(res_payload)
+                                task_save_res = crud.chat.create_chatbot_chat(
+                                    db, session_id, persona_id,
+                                    res_payload['message'], user_chat.id 
+                                )
+                                await asyncio.gather(task_send_user, task_save_res)
                         except Exception as e:
                             print(f"Error during parallel send/save bot response: {e}")
                         print(f"Sent bot response to session_id {session_id}: {res_payload['message']}")
