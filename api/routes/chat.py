@@ -24,10 +24,12 @@ from schemas.persona import PersonaListResponse
 import crud.persona
 import crud.session
 import crud.chat
+import crud.qna
 
 from core.config import settings
 from core.db import SessionDep, get_async_context_db
 
+from api.routes.qna import faq_cache, terms_cache
 
 # 서버에서 발급된 UUID인지 체크 및 세션&페르소나 매핑 담당
 pending_session: Dict[UUID, int] = {}
@@ -167,7 +169,7 @@ async def websocket_chat(websocket: WebSocket):
             while True:
                 try:
                     data = await websocket.receive_text()
-                    
+
                     # JSON 파싱 예외 처리
                     try:
                         req_payload = json.loads(data)
@@ -196,25 +198,48 @@ async def websocket_chat(websocket: WebSocket):
                         'message_id': str(user_chat.id)
                     }
                     print(f"Received message from session_id {session_id}: {req_payload['message']}")
-
-                    # LLM 호출 및 응답 생성
+                    
                     try:
-                        response = await client.post(
-                            llm_endpoint,
-                            json={"query": req_payload['message']}
-                        )
-                        response.raise_for_status()
-                        payload = response.json()
-                        res_payload['message'] = payload.get("answer")
-                        if not isinstance(res_payload['message'], str) or not res_payload['message']:
-                            raise ValueError("LLM 서버 응답 형식이 올바르지 않습니다.")
+                        print(f"Checking cache for session_id {session_id} and message: {data}")
+                        print(f"FAQ Cache Keys: {list(faq_cache.keys())}")
+                        print(f"Terms Cache Keys: {list(terms_cache.keys())}")
+                        # 캐싱된 QnA 질문인지 확인
+                        # faq 캐시 확인
+                        if req_payload['message'] in faq_cache:
+                            # 있는 경우 view 수 증가 및 바로 응답
+                            res_payload['message'] = faq_cache[req_payload['message']]['answer']
+                            await crud.qna.increment_faq_view_count(req_payload['message'])
+                            print(f"FAQ cache hit: {req_payload['message']} -> {res_payload['message']}")
+                        # term 캐시 확인
+                        elif req_payload['message'] in terms_cache:
+                            # 있는 경우 view 수 증가 및 바로 응답
+                            res_payload['message'] = terms_cache[req_payload['message']]['answer']
+                            await crud.qna.increment_term_view_count(req_payload['message'])
+                            print(f"Term cache hit: {req_payload['message']} -> {res_payload['message']}")
+                        # LLM 호출 및 응답 생성 (캐싱된 답변이 없는 경우)
+                        else:
+                            response = await client.post(
+                                llm_endpoint,
+                                json={"query": req_payload['message']}
+                            )
+                            response.raise_for_status()
+                            payload = response.json()
+
+                            if "tool_response" in payload and payload["tool_response"]:
+                                print("Tool response detected in LLM reply.")
+                                res_payload['message'] = payload["tool_response"]["answer"]
+                            else:
+                                print("Standard LLM response detected.")
+                                res_payload['message'] = payload["answer"]
+                            if not isinstance(res_payload['message'], str) or not res_payload['message']:
+                                raise ValueError("LLM 서버 응답 형식이 올바르지 않습니다.")
                     except httpx.HTTPStatusError as exc:
                         res_payload['message'] = f"LLM 서버 오류 (HTTP {exc.response.status_code})"
                     except (httpx.RequestError, ValueError) as e:
                         res_payload['message'] = f"LLM 서버 통신 오류: {e}"
                     # 봇 응답 전송&저장 병렬 처리
                     finally:
-                        try: 
+                        try:
                             async with get_async_context_db() as db:
                                 task_send_user = websocket.send_json(res_payload)
                                 task_save_res = crud.chat.create_chatbot_chat(
