@@ -90,9 +90,6 @@ async def websocket_chat(websocket: WebSocket):
                     print(f"Received message from session_id {session_id}: {req_payload['message']}")
                     
                     try:
-                        print(f"Checking cache for session_id {session_id} and message: {data}")
-                        print(f"FAQ Cache Keys: {list(faq_cache.keys())}")
-                        print(f"Terms Cache Keys: {list(terms_cache.keys())}")
                         # 캐싱된 QnA 질문인지 확인
                         # faq 캐시 확인
                         if req_payload['message'] in faq_cache:
