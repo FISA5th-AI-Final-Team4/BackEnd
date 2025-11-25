@@ -5,6 +5,7 @@ class Settings(BaseSettings):
     FRONTEND_HOST: str
     LLMSERVER_URL: str
     DATABASE_URL: str
+    FAQ_DATABASE_URL: str
     HTTPX_TIMEOUT: float
     ENVIRONMENT: str = "development"
 
