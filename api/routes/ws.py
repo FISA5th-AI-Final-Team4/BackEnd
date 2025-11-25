@@ -2,14 +2,16 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException
 from sqlalchemy.exc import SQLAlchemyError
 
 from datetime import datetime, timezone
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import json
 import httpx
 import asyncio
 
+import crud.session
 import crud.persona
 import crud.qna
+import crud.chat
 
 from api.routes.qna import faq_cache, terms_cache
 from api.routes.chat import pending_session
@@ -22,19 +24,11 @@ router = APIRouter(prefix="/chat", tags=["Chat"])
 
 @router.websocket("/ws")
 async def websocket_chat(websocket: WebSocket):
-    try:
-        session_id_str = websocket.cookies.get("session_token")
-        session_id = UUID(session_id_str)
-    except Exception as e:
-        await websocket.close(code=4001, reason="Invalid session")
-        return
-    # 세션 ID에 매핑된 페르소나 ID 조회
-    persona_id = pending_session[session_id]
-    async with get_async_context_db() as db:
-        persona = await crud.persona.get_persona_by_id(db, persona_id)
-        if not persona: # 존재하지 않는 페르소나 ID면 연결 종료
-            await websocket.close(code=4001, reason="Invalid persona")
-            return
+    # WS 최초 연결 시 랜덤 UUID & 빈 페르소나 ID (로그아웃 상태) 쌍 생성
+        # 추후 로그인 시 페르소나 ID 업데이트
+    session_id = uuid4()
+    persona_id = None
+    pending_session[session_id] = persona_id
 
     # PG 저장 예외 처리
     try:
@@ -58,6 +52,7 @@ async def websocket_chat(websocket: WebSocket):
         async with httpx.AsyncClient(timeout=settings.HTTPX_TIMEOUT) as client:
             while True:
                 try:
+                    # 사용자가 전송한 데이터 변수화
                     data = await websocket.receive_text()
 
                     # JSON 파싱 예외 처리
@@ -81,11 +76,13 @@ async def websocket_chat(websocket: WebSocket):
                         print(f"--- DB Error saving user chat for session_id {session_id}: {e}")
                         await websocket.send_json({"error": "Internal Server Error: DB operation failed"})
                         continue
+                    # 사용자에게 WS로 전송할 페이로드 준비
                     timestamp = datetime.now(timezone.utc).isoformat()
                     res_payload = {
                         'sender': 'bot',
                         'timestamp': timestamp,
-                        'message_id': str(user_chat.id)
+                        'message_id': str(user_chat.id),
+                        'login_required': False
                     }
                     print(f"Received message from session_id {session_id}: {req_payload['message']}")
                     
@@ -112,9 +109,14 @@ async def websocket_chat(websocket: WebSocket):
                             response.raise_for_status()
                             payload = response.json()
 
+                            # 툴이 호출된 응답인 경우
                             if "tool_response" in payload and payload["tool_response"]:
                                 print("Tool response detected in LLM reply.")
                                 res_payload['message'] = payload["tool_response"]["answer"]
+                                # 로그인이 필요한 툴 호출인 경우
+                                if "login_required" in payload["tool_response"]:
+                                    res_payload['login_required'] = True
+                            # 챗봇 표준 응답인 경우
                             else:
                                 print("Standard LLM response detected.")
                                 res_payload['message'] = payload["answer"]
@@ -127,6 +129,7 @@ async def websocket_chat(websocket: WebSocket):
                     # 봇 응답 전송&저장 병렬 처리
                     finally:
                         try:
+                            # 챗봇 응답 전송 & 저장 병렬 처리
                             async with get_async_context_db() as db:
                                 task_send_user = websocket.send_json(res_payload)
                                 task_save_res = crud.chat.create_chatbot_chat(
