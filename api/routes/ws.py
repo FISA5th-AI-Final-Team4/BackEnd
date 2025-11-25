@@ -100,7 +100,7 @@ async def websocket_chat(websocket: WebSocket):
                         # term 캐시 확인
                         elif req_payload['message'] in terms_cache:
                             # 있는 경우 view 수 증가 및 바로 응답
-                            res_payload['message'] = terms_cache[req_payload['message']]['answer']
+                            res_payload['message'] = terms_cache[req_payload['message']]['definition']
                             await crud.qna.increment_term_view_count(req_payload['message'])
                             print(f"Term cache hit: {req_payload['message']} -> {res_payload['message']}")
                         # LLM 호출 및 응답 생성 (캐싱된 답변이 없는 경우)
