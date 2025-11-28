@@ -23,9 +23,6 @@ from core.config import settings
 from core.db import SessionDep, get_async_context_db
 
 
-# 서버에서 발급된 UUID인지 체크 및 세션&페르소나 매핑 담당
-pending_session: Dict[UUID, int] = {}
-
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
 @router.get("/personas", response_model=PersonaListResponse)

@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     FAQ_DATABASE_URL: str
     HTTPX_TIMEOUT: float
     ENVIRONMENT: str = "development"
+    MCP_SERVER_URL: str
 
     # .env 환경변수 파일 로드
     model_config = SettingsConfigDict(

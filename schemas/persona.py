@@ -8,6 +8,9 @@ class PersonaBase(SQLModel):
     description: Optional[str] = None
     # image_key: Optional[str] = None
 
+class PersonaRequest(SQLModel):
+    session_id: str
+
 # 페르소나 생성용 스키마
 class PersonaCreate(PersonaBase):
     pass
