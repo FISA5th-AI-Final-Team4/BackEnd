@@ -34,7 +34,9 @@ async def create_chatbot_chat(
     session_id: UUID,
     persona_id: int,
     content: str,
-    prompt_chat_id: UUID
+    prompt_chat_id: UUID,
+    tool_name: Optional[str],
+    tool_metadata: Optional[dict]
 ) -> Chat:
     """
     챗봇 응답을 Chat 테이블과 ChatbotResponse 테이블에 트랜잭션으로 저장합니다.
@@ -51,7 +53,9 @@ async def create_chatbot_chat(
 
     new_res_detail = ChatbotResponse(
         chat_id=str(new_chat.id),
-        prompt_chat_id=str(prompt_chat_id)
+        prompt_chat_id=str(prompt_chat_id),
+        source_tool=tool_name,
+        response_payload=tool_metadata
     )
     db.add(new_res_detail)
     await db.commit()

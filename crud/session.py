@@ -38,3 +38,17 @@ async def get_chat_session_by_id(
     result = await db.execute(statement)
     
     return result.scalar_one_or_none()
+
+async def update_persona_in_session(
+    db: AsyncSession,
+    session_id: UUID,
+    persona_id: int
+) -> None:
+    """
+    채팅 세션의 페르소나 ID를 업데이트합니다.
+    """
+    session = await get_chat_session_by_id(db, session_id)
+    if session:
+        session.persona_id = persona_id
+        db.add(session)
+        await db.commit()
