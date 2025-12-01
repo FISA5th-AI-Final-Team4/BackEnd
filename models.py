@@ -149,7 +149,18 @@ class ChatbotResponse(SQLModel, table=True):
     # True: 유용함, False: 유용하지 않음, None: 미평가 (기본값)
     is_helpful: Optional[bool] = Field(default=None)
 
-    # TODO - 호출된 도구 정보 컬럼 / 응답 타입 컬럼 (카드 정보, 일반 채팅 등)
+    # 적용된 MCP 툴의 operation id
+    source_tool: Optional[str] = Field(
+        default=None,
+        sa_column=Column(TEXT)
+    )
+
+    # 적용된 MCP 툴의 응답 (answer 제외)
+    response_payload: Optional[dict] = Field(
+        default=None,
+        sa_column=Column(JSON)
+    )
+
 
     # --- Relationships ---
     chat: Chat = Relationship(

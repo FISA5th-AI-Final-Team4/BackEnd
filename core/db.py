@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
@@ -12,6 +13,12 @@ from models import Persona # 테이블 생성을 위해 임포트
 engine = create_async_engine(settings.DATABASE_URL)
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    """ 비동기 DB 세션 생성 및 반환 """
+    async with SQLModelAsyncSession(engine) as session: # ◀◀◀ 수정
+        yield session
+
+@asynccontextmanager
+async def get_async_context_db() -> AsyncGenerator[AsyncSession, None]:
     """ 비동기 DB 세션 생성 및 반환 """
     async with SQLModelAsyncSession(engine) as session: # ◀◀◀ 수정
         yield session

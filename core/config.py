@@ -5,8 +5,10 @@ class Settings(BaseSettings):
     FRONTEND_HOST: str
     LLMSERVER_URL: str
     DATABASE_URL: str
+    FAQ_DATABASE_URL: str
     HTTPX_TIMEOUT: float
     ENVIRONMENT: str = "development"
+    MCP_SERVER_URL: str
 
     # .env 환경변수 파일 로드
     model_config = SettingsConfigDict(

@@ -1,18 +1,12 @@
 from fastapi import (
     APIRouter, HTTPException,
-    WebSocket, WebSocketDisconnect,
     Path, Body, Depends
 )
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 
-from datetime import datetime, timezone
 from uuid import UUID, uuid4
 from typing import Dict
-
-import json
-import httpx
-import asyncio
 
 from schemas.chat import (
     ChatSessionRequest, ChatSessionResponse,
@@ -26,11 +20,8 @@ import crud.session
 import crud.chat
 
 from core.config import settings
-from core.db import SessionDep
+from core.db import SessionDep, get_async_context_db
 
-
-# 서버에서 발급된 UUID인지 체크 및 세션&페르소나 매핑 담당
-pending_session: Dict[UUID, int] = {}
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
@@ -127,117 +118,6 @@ async def get_chat_history(session_id: UUID, db: SessionDep):
             status_code=500,
             detail="Internal Server Error: Unknown error occurred"
         )
-
-@router.websocket("/ws")
-async def websocket_chat(websocket: WebSocket, db: SessionDep):
-    try:
-        session_id_str = websocket.cookies.get("session_token")
-        session_id = UUID(session_id_str)
-    except Exception as e:
-        await websocket.close(code=4001, reason="Invalid session")
-        return
-    # 세션 ID에 매핑된 페르소나 ID 조회
-    persona_id = pending_session[session_id]
-    persona = await crud.persona.get_persona_by_id(db, persona_id)
-    if not persona: # 존재하지 않는 페르소나 ID면 연결 종료
-        await websocket.close(code=4001, reason="Invalid persona")
-        return
-
-    # PG 저장 예외 처리
-    try:
-        await crud.session.create_chat_session(db, session_id, persona_id)
-    except SQLAlchemyError as e:
-        print(f"--- DB Error in websocket /ws/{session_id}: {e}")
-        await websocket.close(code=1011)
-        return
-    except Exception as e:
-        print(f"--- Unknown Error in websocket /ws/{session_id}: {e}")
-        await websocket.close(code=1011)
-        return
-    
-    # WS 연결 수립
-    await websocket.accept()
-    llm_endpoint = f"{settings.LLMSERVER_URL.rstrip('/')}/llm/mcp-router/dispatch"
-    print(f"WebSocket connection established for session_id: {session_id}")
-
-    try:
-        async with httpx.AsyncClient(timeout=settings.HTTPX_TIMEOUT) as client:
-            while True:
-                try:
-                    data = await websocket.receive_text()
-                    
-                    # JSON 파싱 예외 처리
-                    try:
-                        req_payload = json.loads(data)
-                        if not isinstance(req_payload, dict):
-                            raise ValueError("Payload is not a JSON object")
-                    except (json.JSONDecodeError, ValueError) as e:
-                        print(f"Invalid JSON received from {session_id}: {e}")
-                        await websocket.send_json({"error": "Invalid JSON format"})
-                        continue
-
-                    # 사용자 메세지 DB 저장
-                    try:
-                        user_chat = await crud.chat.create_user_chat(
-                            db, req_payload['message_id'],
-                            session_id, persona_id, req_payload['message']
-                        )
-                    except SQLAlchemyError as e:
-                        print(f"--- DB Error saving user chat for session_id {session_id}: {e}")
-                        await websocket.send_json({"error": "Internal Server Error: DB operation failed"})
-                        continue
-                    timestamp = datetime.now(timezone.utc).isoformat()
-                    res_payload = {
-                        'sender': 'bot',
-                        'timestamp': timestamp,
-                        'message_id': str(user_chat.id)
-                    }
-                    print(f"Received message from session_id {session_id}: {req_payload['message']}")
-
-                    # LLM 호출 및 응답 생성
-                    try:
-                        response = await client.post(
-                            llm_endpoint,
-                            json={"query": req_payload['message']}
-                        )
-                        response.raise_for_status()
-                        payload = response.json()
-                        res_payload['message'] = payload.get("answer")
-                        if not isinstance(res_payload['message'], str) or not res_payload['message']:
-                            raise ValueError("LLM 서버 응답 형식이 올바르지 않습니다.")
-                    except httpx.HTTPStatusError as exc:
-                        res_payload['message'] = f"LLM 서버 오류 (HTTP {exc.response.status_code})"
-                    except (httpx.RequestError, ValueError) as e:
-                        res_payload['message'] = f"LLM 서버 통신 오류: {e}"
-                    # 봇 응답 전송&저장 병렬 처리
-                    finally:
-                        task_send_user = websocket.send_json(res_payload)
-                        task_save_res = crud.chat.create_chatbot_chat(
-                            db, session_id, persona_id,
-                            res_payload['message'], user_chat.id 
-                        )
-                        try: 
-                            await asyncio.gather(task_send_user, task_save_res)
-                        except Exception as e:
-                            print(f"Error during parallel send/save bot response: {e}")
-                        print(f"Sent bot response to session_id {session_id}: {res_payload['message']}")
-                # 루프 내부 개별 메세지 예외 처리
-                except Exception as e:
-                    print(f"--- Unknown Error in message handling loop for session_id {session_id}: {e}")
-                    try:
-                        await websocket.send_json({"error": "Internal Server Error: Unknown error occurred"})
-                    except Exception:
-                        pass
-                    break
-    except WebSocketDisconnect:
-        print(f"WebSocket disconnected for session_id: {session_id}")
-    except Exception as e:
-        print(f"--- Unknown Error in websocket /ws/{session_id}: {e}")
-        await websocket.close(code=1011)
-    finally:
-        # TODO - 연결 종료 시 항상 Manager에서 제거
-        # manager.disconnect(session_id)
-        print(f"WebSocket connection closed for session_id: {session_id}")
 
 @router.post("/feedback")
 async def submit_feedback(req: FeedbackRequest, db: SessionDep):
