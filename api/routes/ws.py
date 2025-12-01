@@ -128,6 +128,7 @@ async def websocket_chat(websocket: WebSocket):
                     print(f"Received message from session_id {session_id}: {req_payload['message']}")
                     
                     try:
+                        tool_metadata = {}
                         # 캐싱된 QnA 질문인지 확인
                         # faq 캐시 확인
                         if req_payload['message'] in faq_cache:
@@ -155,7 +156,6 @@ async def websocket_chat(websocket: WebSocket):
                             print(f"LLM response payload for session_id {session_id}: {payload}")
 
                             # 툴이 호출된 응답인 경우
-                            tool_metadata = {}
                             if "tool_response" in payload and payload["tool_response"]:
                                 print("Tool response detected in LLM reply.")
                                 res_payload['message'] = payload["tool_response"]["tool_response_content"]["answer"]
