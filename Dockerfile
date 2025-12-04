@@ -39,4 +39,4 @@ COPY . .
 EXPOSE 8000
 
 # FastAPI 서버 실행 (0.0.0.0으로 외부에서도 접근 가능하게 함)
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
