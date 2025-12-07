@@ -2,7 +2,7 @@
 
 | 소개 | 관련 링크 |
 | ------ | ------ |
-| 챗봇의 정석의 고객과 소통하는 **백엔드 서버 원격 저장소**입니다.<br>FastAPI를 기반으로 로그인·페르소나 관리, LLM서버 응답 파싱 등의 **REST API**를 제공합니다.<br>`/api/chat/ws` WebSocket 엔드포인트를 통해 실시간 채팅을 처리하고, LLM 서버·MCP 서버와 연동하여 **카드 추천, FAQ/용어 검색 등 도메인 툴 호출 결과를 클라이언트에 전달**합니다.<br>PostgreSQL 기반으로 채팅 로그 및 QnA 데이터를 관리하며, Docker·Jenkins·ALB+EC2 환경에서 운영될 수 있도록 설계되었습니다. | 🔗[챗봇의 정석 프로젝트 설명 페이지](https://github.com/FISA5th-AI-Final-Team4) <br>🔗[FrontEnd 원격 저장소](https://github.com/FISA5th-AI-Final-Team4/FrontEnd) <br>🔗[LLM서버 원격 저장소](https://github.com/FISA5th-AI-Final-Team4/LLMServer) <br>🔗[MCP서버 원격 저장소](https://github.com/FISA5th-AI-Final-Team4/MCPServer) <br>🔗[DB서버 원격 저장소](https://github.com/FISA5th-AI-Final-Team4/LocalDbSetup) |
+| 챗봇의 정석의 고객과 소통하는 **백엔드 서버 원격 저장소**입니다.<br>FastAPI를 기반으로 로그인·페르소나 관리, LLM서버 응답 파싱 등의 **REST API**를 제공합니다.<br>`/api/chat/ws` WebSocket 엔드포인트를 통해 실시간 채팅을 처리하고, LLM 서버·MCP 서버와 연동하여 **카드 추천,<br> FAQ/용어 검색 등 도메인 툴 호출 결과를 클라이언트에 전달**합니다.<br>PostgreSQL 기반으로 채팅 로그 및 QnA 데이터를 관리하며, Docker·Jenkins·ALB+EC2 환경에서 운영될 수 있도록 설계되었습니다. | 🔗[챗봇의 정석](https://github.com/FISA5th-AI-Final-Team4) <br>🔗[FrontEnd](https://github.com/FISA5th-AI-Final-Team4/FrontEnd) <br>🔗[LLM서버](https://github.com/FISA5th-AI-Final-Team4/LLMServer) <br>🔗[MCP서버](https://github.com/FISA5th-AI-Final-Team4/MCPServer) <br>🔗[DB서버](https://github.com/FISA5th-AI-Final-Team4/LocalDbSetup) |
 
 ## 🧾 API 명세
 
